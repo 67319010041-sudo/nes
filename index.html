@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>หน้าจัดลำดับเพลง</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        :root {
+            --primary: #0046ad; /* Deep Blue */
+            --bg: #f4f7fa;
+            --white: #ffffff;
+            --text: #333;
+        }
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--white);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            padding: 25px;
+            overflow: hidden;
+        }
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .input-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f0f2f5;
+            padding: 5px;
+            border-radius: 12px;
+        }
+        input {
+            flex: 1;
+            padding: 12px 15px;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-family: 'Prompt';
+            font-size: 14px;
+        }
+        button.add-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.1s;
+        }
+        button.add-btn:active { transform: scale(0.95); }
+
+        ul { list-style: none; padding: 0; margin: 0; }
+        li {
+            background: var(--white);
+            border: 1px solid #eee;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: fadeIn 0.3s ease;
+            cursor: grab;
+            transition: box-shadow 0.2s;
+        }
+        li:active { cursor: grabbing; }
+        li.sortable-ghost { opacity: 0.4; }
+        li.sortable-drag { box-shadow: 0 10px 20px rgba(0,70,173,0.2); }
+        
+        .song-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            overflow: hidden;
+        }
+        .drag-handle { color: #ccc; cursor: grab; font-size: 20px; }
+        .song-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 250px;
+            color: #444;
+            font-weight: 500;
+        }
+        .delete-btn {
+            background: #ffebee;
+            color: #ff4757;
+            border: none;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .delete-btn:hover { background: #ffcdd2; }
+
+        .empty-state {
+            text-align: center;
+            color: #aaa;
+            padding: 40px 0;
+            font-size: 14px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            หน้าจัดลำดับเพลง
+        </h1>
+        
+        <div class="input-box">
+            <input type="text" id="urlInput" placeholder="วางลิงก์เพลงที่นี่...">
+            <button class="add-btn" id="addBtn">เพิ่ม</button>
+        </div>
+
+        <ul id="playlist">
+            <!-- Songs will appear here -->
+        </ul>
+        <div id="loading" class="empty-state">กำลังเชื่อมต่อ...</div>
+    </div>
+
+    <!-- Firebase SDK v10.7.1 (Stable) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // Firebase Configuration (Complete)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBY5b_eChwHx3qO-J4YkW9aw03xOOEMurM",
+            authDomain: "discordunknow-54ce9.firebaseapp.com",
+            projectId: "discordunknow-54ce9",
+            storageBucket: "discordunknow-54ce9.firebasestorage.app",
+            messagingSenderId: "571989738366",
+            appId: "1:571989738366:web:009545030d8cbcfc11292f",
+            measurementId: "G-25J7QG5SM5",
+            databaseURL: "https://discordunknow-54ce9-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Get User ID from URL (?uid=...)
+        const urlParams = new URLSearchParams(window.location.search);
+        const uid = urlParams.get('uid');
+
+        const playlistList = document.getElementById('playlist');
+        const loading = document.getElementById('loading');
+
+        if (!uid) {
+            document.body.innerHTML = '<div style="text-align:center; margin-top:50px; font-family: Prompt;"><h1>⚠️ ไม่พบข้อมูลผู้ใช้</h1><p>กรุณาพิมพ์คำสั่ง <b>/site</b> ใน Discord บอท<br>เพื่อรับลิงก์เข้าใช้งานส่วนตัวครับ</p></div>';
+        } else {
+            const userPlaylistRef = ref(db, `playlists/${uid}`);
+            
+            // --- SortableJS Setup ---
+            new Sortable(playlistList, {
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                handle: '.drag-handle', // Drag only from handle
+                onEnd: function () {
+                    saveOrder(); // Save to Firebase on drop
+                }
+            });
+
+            // --- Load Data ---
+            onValue(userPlaylistRef, (snapshot) => {
+                loading.style.display = 'none';
+                playlistList.innerHTML = '';
+                
+                const data = snapshot.val();
+                if (!data || data.length === 0) {
+                    playlistList.innerHTML = '<div class="empty-state">ยังไม่มีเพลงในรายการ</div>';
+                    return;
+                }
+
+                // If data is array (handle potential empty slots via filtering)
+                const songs = Array.isArray(data) ? data : Object.values(data);
+                
+                songs.forEach((url) => {
+                    if(!url) return;
+                    addSongToDOM(url);
+                });
+            }, (error) => {
+                // If permission denied or other error
+                loading.innerHTML = `<span style="color:red">Connection Error: ${error.message}</span>`;
+            });
+
+            // --- Functions ---
+            function addSongToDOM(url) {
+                const li = document.createElement('li');
+                li.dataset.url = url;
+                li.innerHTML = `
+                    <div class="song-info">
+                        <span class="drag-handle">☰</span>
+                        <a href="${url}" target="_blank" class="song-name">${url}</a>
+                    </div>
+                    <button class="delete-btn">🗑️</button>
+                `;
+
+                // Delete Event
+                li.querySelector('.delete-btn').addEventListener('click', () => {
+                    li.remove();
+                    saveOrder();
+                });
+
+                playlistList.appendChild(li);
+            }
+
+            window.saveOrder = function() {
+                const items = playlistList.querySelectorAll('li');
+                const newPlaylist = [];
+                items.forEach(li => newPlaylist.push(li.dataset.url));
+                set(userPlaylistRef, newPlaylist); // Overwrite with new order
+            }
+
+            document.getElementById('addBtn').addEventListener('click', () => {
+                const input = document.getElementById('urlInput');
+                const url = input.value.trim();
+                if (url) {
+                    get(userPlaylistRef).then((snap) => {
+                        let current = snap.val() || [];
+                        if (!Array.isArray(current)) current = Object.values(current);
+                        current.push(url);
+                        set(userPlaylistRef, current);
+                        input.value = '';
+                    });
+                }
+            });
+        }
+    </script>
+</body>
+</html>
